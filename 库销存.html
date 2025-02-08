@@ -157,7 +157,7 @@
               <input type="date" id="saleDate" class="form-control" required>
             </div>
             <div class="col-md-3">
-              <select id="saleProduct" class="form-select" onchange="updateSaleProductInfo(); updateTotalPrice();" required>
+              <select id="saleProduct" class="form-select" onchange="updateTotalPrice();" required>
                 <option value="">选择商品</option>
               </select>
             </div>
@@ -175,7 +175,7 @@
               <div class="minimal-label">利润：<span id="profit">0</span>元</div>
             </div>
           </div>
-          <!-- 第二行：选填项：联系方式、邮寄地址、快递运营商、快递单号 -->
+          <!-- 第二行：选填项：联系方式、邮寄地址、快递、快递单号 -->
           <div class="row g-2 mt-2">
             <div class="col-md-3">
               <input type="text" id="customerContact" class="form-control" placeholder="联系方式(选填)">
@@ -183,9 +183,10 @@
             <div class="col-md-3">
               <input type="text" id="shippingAddress" class="form-control" placeholder="邮寄地址(选填)">
             </div>
+            <!-- 快递运营商修改为下拉框 -->
             <div class="col-md-3">
               <select id="courier" class="form-select">
-                <option value="">选择快递运营商(选填)</option>
+                <option value="">请选择快递运营商(选填)</option>
                 <option value="申通">申通</option>
                 <option value="中通">中通</option>
                 <option value="顺丰">顺丰</option>
@@ -202,7 +203,7 @@
             <button type="button" class="btn btn-outline-info" onclick="exportData('sales')">导出销售</button>
           </div>
         </form>
-        <!-- 日期筛选区域 -->
+        <!-- 日期筛选区域（针对销售信息表格） -->
         <div class="row g-2 mt-2">
           <div class="col-md-3">
             <input type="date" id="filterDate" class="form-control" placeholder="筛选日期">
@@ -244,11 +245,34 @@
       </div>
     </div>
 
-    <!-- 利润趋势图卡片 -->
+    <!-- 利润趋势图卡片（按日期汇总，可筛选） -->
     <div class="card">
-      <div class="card-header">利润趋势</div>
+      <div class="card-header">利润趋势（按日期）</div>
       <div class="card-body">
+        <!-- 筛选区域：选择起始和结束日期 -->
+        <div class="row g-2 mb-3">
+          <div class="col-md-3">
+            <input type="date" id="profitStartDate" class="form-control" placeholder="起始日期">
+          </div>
+          <div class="col-md-3">
+            <input type="date" id="profitEndDate" class="form-control" placeholder="结束日期">
+          </div>
+          <div class="col-md-3">
+            <button type="button" class="btn btn-outline-primary" onclick="filterProfitByDate()">筛选利润</button>
+          </div>
+          <div class="col-md-3">
+            <button type="button" class="btn btn-outline-secondary" onclick="resetProfitDateFilter()">重置筛选</button>
+          </div>
+        </div>
         <canvas id="profitChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 利润随商品柱状图卡片 -->
+    <div class="card">
+      <div class="card-header">利润随商品</div>
+      <div class="card-body">
+        <canvas id="profitByProductChart"></canvas>
       </div>
     </div>
 
@@ -266,8 +290,9 @@
     let editingProductIndex = null; // 当前编辑的商品索引
     let editingSaleIndex = null;    // 当前编辑的销售信息索引
     let profitChart = null;
+    let profitByProductChart = null;
 
-    // 保存数据到本地存储
+    // 保存数据到 localStorage
     function saveData() {
       localStorage.setItem('inventory', JSON.stringify(inventory));
       localStorage.setItem('sales', JSON.stringify(sales));
@@ -280,9 +305,13 @@
       renderInventory();
       renderSales();
       updateProductDropdown();
-      renderProfitChart();
+      renderProfitChart();       // 默认加载全部销售数据
+      renderProfitByProductChart();
     }
     window.onload = loadData;
+
+    // 在页面卸载前保存数据（确保数据持久化）
+    window.addEventListener('beforeunload', saveData);
 
     // 切换库存显示/隐藏
     function toggleInventory() {
@@ -449,7 +478,7 @@
       // 以下为选填项
       const customerContact = document.getElementById('customerContact').value.trim();
       const shippingAddress = document.getElementById('shippingAddress').value.trim();
-      const courier = document.getElementById('courier').value; // 从下拉菜单中获取
+      const courier = document.getElementById('courier').value.trim();
       const trackingNumber = document.getElementById('trackingNumber').value.trim();
 
       if (!customerName || !saleDate || productIndex === "" || isNaN(saleQuantity) || isNaN(saleUnitPrice)) {
@@ -518,7 +547,8 @@
       updateProductDropdown();
       resetSaleFields();
       saveData();
-      renderProfitChart();
+      renderProfitChart();          // 更新利润趋势图（全部或筛选后）
+      renderProfitByProductChart(); // 更新利润随商品图
     }
 
     // 渲染销售记录表格（带日期筛选）
@@ -602,6 +632,7 @@
         updateProductDropdown();
         saveData();
         renderProfitChart();
+        renderProfitByProductChart();
       }
     }
 
@@ -622,6 +653,7 @@
         renderSales();
         saveData();
         renderProfitChart();
+        renderProfitByProductChart();
       }
     }
 
@@ -651,10 +683,10 @@
       document.getElementById('trackingNumber').value = '';
     }
 
-    // 计算每日利润
-    function calculateDailyProfits() {
+    // 计算每日利润（可传入指定销售数据）
+    function calculateDailyProfits(salesData) {
       let dailyProfits = {};
-      sales.forEach(sale => {
+      salesData.forEach(sale => {
         const date = sale.saleDate;
         const profit = sale.profit;
         if (!dailyProfits[date]) {
@@ -665,9 +697,16 @@
       return dailyProfits;
     }
 
-    // 渲染利润趋势图
-    function renderProfitChart() {
-      const dailyProfits = calculateDailyProfits();
+    // 渲染利润趋势图（支持按起始和结束日期筛选）
+    function renderProfitChart(startDate, endDate) {
+      let filteredSales = sales;
+      if (startDate) {
+        filteredSales = filteredSales.filter(sale => sale.saleDate >= startDate);
+      }
+      if (endDate) {
+        filteredSales = filteredSales.filter(sale => sale.saleDate <= endDate);
+      }
+      const dailyProfits = calculateDailyProfits(filteredSales);
       const dates = Object.keys(dailyProfits).sort();
       const profits = dates.map(date => dailyProfits[date]);
 
@@ -703,6 +742,72 @@
               title: {
                 display: true,
                 text: '日期'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 利润趋势图的筛选操作
+    function filterProfitByDate() {
+      const startDate = document.getElementById('profitStartDate').value;
+      const endDate = document.getElementById('profitEndDate').value;
+      renderProfitChart(startDate, endDate);
+    }
+
+    // 重置利润趋势图的日期筛选
+    function resetProfitDateFilter() {
+      document.getElementById('profitStartDate').value = "";
+      document.getElementById('profitEndDate').value = "";
+      renderProfitChart();
+    }
+
+    // 渲染利润随商品柱状图
+    function renderProfitByProductChart() {
+      let productProfits = {};
+      sales.forEach(sale => {
+        const productName = sale.product;
+        if (!productProfits[productName]) {
+          productProfits[productName] = 0;
+        }
+        productProfits[productName] += sale.profit;
+      });
+      const products = Object.keys(productProfits).sort();
+      const profits = products.map(product => productProfits[product]);
+
+      const ctx = document.getElementById('profitByProductChart').getContext('2d');
+      
+      if (profitByProductChart) {
+        profitByProductChart.destroy();
+      }
+
+      profitByProductChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: products,
+          datasets: [{
+            label: '产品利润 (元)',
+            data: profits,
+            backgroundColor: 'rgba(153, 102, 255, 0.6)',
+            borderColor: 'rgba(153, 102, 255, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: '利润 (元)'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: '产品'
               }
             }
           }
