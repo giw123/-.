@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>库存与销售管理系统</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 10px;
+      text-align: center;
+    }
+    .input-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .input-container input,
+    .input-container select,
+    .input-container button {
+      padding: 10px;
+      font-size: 14px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .button-container {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .product-image {
+      max-width: 100px;
+      max-height: 100px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>库存与销售管理系统</h1>
+
+<!-- 库存管理输入区 -->
+<div class="input-container">
+  <input type="text" id="productName" placeholder="商品名称" required>
+  <input type="number" id="unitPrice" placeholder="单价" required>
+  <input type="date" id="purchaseDate" required>
+  <input type="text" id="location" placeholder="购入地点" required>
+  <input type="number" id="quantity" placeholder="数量" required>
+  <!-- 商品图片上传框 -->
+  <input type="file" id="productImage" accept="image/*">
+  <button onclick="addProduct()">添加商品</button>
+</div>
+
+<!-- 查看库存按钮 -->
+<div class="button-container">
+  <button onclick="toggleInventory()">查看库存</button>
+</div>
+
+<!-- 库存展示表格（默认隐藏） -->
+<div id="inventorySection" style="display:none;">
+  <table id="inventoryTable">
+    <thead>
+      <tr>
+        <th>商品名称</th>
+        <th>单价</th>
+        <th>购入时间</th>
+        <th>购入地点</th>
+        <th>数量</th>
+        <th>总价</th>
+        <th>商品图片</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- 库存数据将在这里动态显示 -->
+    </tbody>
+  </table>
+</div>
+
+<!-- 查看销售信息按钮 -->
+<div class="button-container">
+  <button onclick="toggleSales()">查看销售信息</button>
+</div>
+
+<!-- 销售记录输入区 -->
+<h2>添加销售信息</h2>
+<div class="input-container">
+  <input type="text" id="customerName" placeholder="客户名称" required>
+  <input type="date" id="saleDate" required>
+  <select id="saleProduct" onchange="updateSaleProductInfo()" required>
+    <option value="">选择商品</option>
+  </select>
+  <input type="number" id="saleQuantity" placeholder="销售数量" oninput="updateTotalPrice()" required>
+  <!-- 售卖单价设为可编辑输入框 -->
+  <input type="number" id="saleUnitPrice" placeholder="售卖单价" oninput="updateTotalPrice()" required>
+  <span>总价: <span id="totalPrice">0</span> 元</span>
+  <input type="text" id="customerContact" placeholder="联系方式" required>
+  <input type="text" id="shippingAddress" placeholder="邮寄地点" required>
+  <input type="text" id="courier" placeholder="快递运营商" required>
+  <input type="text" id="trackingNumber" placeholder="快递单号" required>
+  <button onclick="addSale()">添加销售信息</button>
+</div>
+
+<!-- 销售记录展示表格（默认隐藏） -->
+<div id="salesSection" style="display:none;">
+  <table id="salesTable">
+    <thead>
+      <tr>
+        <th>客户名称</th>
+        <th>销售时间</th>
+        <th>商品</th>
+        <th>数量</th>
+        <th>售卖单价</th>
+        <th>总价</th>
+        <th>联系方式</th>
+        <th>邮寄地点</th>
+        <th>快递运营商</th>
+        <th>快递单号</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- 销售记录将在这里动态显示 -->
+    </tbody>
+  </table>
+</div>
+
+<!-- 操作按钮 -->
+<div class="button-container">
+  <button onclick="clearInventory()">清空库存</button>
+  <button onclick="clearSales()">清空销售记录</button>
+</div>
+
+<script>
+  let inventory = [];
+  let sales = [];
+  let editingProductIndex = null; // 当前编辑的商品索引
+  let editingSaleIndex = null;   // 当前编辑的销售信息索引
+
+  // 切换库存显示/隐藏
+  function toggleInventory() {
+    const inventorySection = document.getElementById('inventorySection');
+    if (inventorySection.style.display === 'none') {
+      inventorySection.style.display = 'block';
+      renderInventory(); // 当显示库存时重新渲染库存表格
+    } else {
+      inventorySection.style.display = 'none';
+    }
+  }
+
+  // 切换销售信息显示/隐藏
+  function toggleSales() {
+    const salesSection = document.getElementById('salesSection');
+    if (salesSection.style.display === 'none') {
+      salesSection.style.display = 'block';
+      renderSales(); // 当显示销售信息时重新渲染销售表格
+    } else {
+      salesSection.style.display = 'none';
+    }
+  }
+
+  // 添加商品到库存
+  function addProduct() {
+    const name = document.getElementById('productName').value;
+    const unitPrice = parseFloat(document.getElementById('unitPrice').value);
+    const purchaseDate = document.getElementById('purchaseDate').value;
+    const location = document.getElementById('location').value;
+    const quantity = parseInt(document.getElementById('quantity').value);
+    const productImage = document.getElementById('productImage').files[0];
+
+    if (!name || !unitPrice || !purchaseDate || !location || !quantity) {
+      alert("请填写所有商品信息！");
+      return;
+    }
+
+    const totalPrice = unitPrice * quantity;
+
+    // 读取图片并存储（但不再显示预览）
+    let imageUrl = "";
+    if (productImage) {
+      const reader = new FileReader();
+      reader.onloadend = function () {
+        imageUrl = reader.result;
+        const newProduct = {
+          name,
+          unitPrice,
+          purchaseDate,
+          location,
+          quantity,
+          totalPrice,
+          imageUrl
+        };
+
+        if (editingProductIndex !== null) {
+          // 如果正在编辑商品，更新商品
+          inventory[editingProductIndex] = newProduct;
+          editingProductIndex = null;
+        } else {
+          // 否则添加新商品
+          inventory.push(newProduct);
+        }
+
+        renderInventory();
+        updateProductDropdown();
+        resetInputFields();
+      };
+      reader.readAsDataURL(productImage);
+    } else {
+      const newProduct = {
+        name,
+        unitPrice,
+        purchaseDate,
+        location,
+        quantity,
+        totalPrice,
+        imageUrl
+      };
+
+      if (editingProductIndex !== null) {
+        // 如果正在编辑商品，更新商品
+        inventory[editingProductIndex] = newProduct;
+        editingProductIndex = null;
+      } else {
+        // 否则添加新商品
+        inventory.push(newProduct);
+      }
+
+      renderInventory();
+      updateProductDropdown();
+      resetInputFields();
+    }
+  }
+
+  // 渲染库存表格
+  function renderInventory() {
+    const tableBody = document.getElementById('inventoryTable').getElementsByTagName('tbody')[0];
+    tableBody.innerHTML = ''; // 清空表格
+
+    inventory.forEach((product, index) => {
+      const row = tableBody.insertRow();
+      row.innerHTML = `
+        <td>${product.name}</td>
+        <td>${product.unitPrice.toFixed(2)}元</td>
+        <td>${product.purchaseDate}</td>
+        <td>${product.location}</td>
+        <td>${product.quantity}</td>
+        <td>${product.totalPrice.toFixed(2)}元</td>
+        <td><img src="${product.imageUrl}" alt="商品图片" class="product-image"></td>
+        <td>
+          <button onclick="editProduct(${index})">编辑</button>
+          <button onclick="deleteProduct(${index})">删除</button>
+        </td>
+      `;
+    });
+  }
+
+  // 编辑商品
+  function editProduct(index) {
+    const product = inventory[index];
+    document.getElementById('productName').value = product.name;
+    document.getElementById('unitPrice').value = product.unitPrice;
+    document.getElementById('purchaseDate').value = product.purchaseDate;
+    document.getElementById('location').value = product.location;
+    document.getElementById('quantity').value = product.quantity;
+
+    editingProductIndex = index; // 设置正在编辑的商品索引
+  }
+
+  // 删除商品
+  function deleteProduct(index) {
+    inventory.splice(index, 1);
+    renderInventory();
+    updateProductDropdown();
+  }
+
+  // 更新销售商品下拉列表
+  function updateProductDropdown() {
+    const select = document.getElementById('saleProduct');
+    select.innerHTML = '<option value="">选择商品</option>'; // 清空原有选项
+
+    inventory.forEach((product, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      option.textContent = `${product.name} (库存: ${product.quantity})`;
+      select.appendChild(option);
+    });
+  }
+
+  // 添加销售记录
+  function addSale() {
+    const customerName = document.getElementById('customerName').value;
+    const saleDate = document.getElementById('saleDate').value;
+    const productIndex = document.getElementById('saleProduct').value;
+    const saleQuantity = parseInt(document.getElementById('saleQuantity').value);
+    const saleUnitPrice = parseFloat(document.getElementById('saleUnitPrice').value);
+    const totalPrice = saleUnitPrice * saleQuantity;
+    const customerContact = document.getElementById('customerContact').value;
+    const shippingAddress = document.getElementById('shippingAddress').value;
+    const courier = document.getElementById('courier').value;
+    const trackingNumber = document.getElementById('trackingNumber').value;
+
+    if (!customerName || !saleDate || productIndex === "" || !saleQuantity || isNaN(saleUnitPrice) ||
+        !customerContact || !shippingAddress || !courier || !trackingNumber) {
+      alert("请填写所有销售信息！");
+      return;
+    }
+
+    const product = inventory[productIndex];
+    // 检查库存是否足够
+    if (product.quantity < saleQuantity) {
+      alert("库存不足！");
+      return;
+    }
+
+    const newSale = {
+      customerName,
+      saleDate,
+      product: product.name,
+      saleQuantity,
+      saleUnitPrice,
+      totalPrice,
+      customerContact,
+      shippingAddress,
+      courier,
+      trackingNumber
+    };
+
+    if (editingSaleIndex !== null) {
+      // 更新销售记录
+      sales[editingSaleIndex] = newSale;
+      editingSaleIndex = null;
+    } else {
+      // 添加新销售记录
+      sales.push(newSale);
+    }
+
+    // 更新库存数量
+    product.quantity -= saleQuantity;
+    renderInventory();
+    renderSales();
+    resetSaleFields();
+  }
+
+  // 渲染销售记录表格
+  function renderSales() {
+    const tableBody = document.getElementById('salesTable').getElementsByTagName('tbody')[0];
+    tableBody.innerHTML = ''; // 清空表格
+
+    sales.forEach((sale, index) => {
+      const row = tableBody.insertRow();
+      row.innerHTML = `
+        <td>${sale.customerName}</td>
+        <td>${sale.saleDate}</td>
+        <td>${sale.product}</td>
+        <td>${sale.saleQuantity}</td>
+        <td>${sale.saleUnitPrice.toFixed(2)}元</td>
+        <td>${sale.totalPrice.toFixed(2)}元</td>
+        <td>${sale.customerContact}</td>
+        <td>${sale.shippingAddress}</td>
+        <td>${sale.courier}</td>
+        <td>${sale.trackingNumber}</td>
+        <td>
+          <button onclick="editSale(${index})">编辑</button>
+          <button onclick="deleteSale(${index})">删除</button>
+        </td>
+      `;
+    });
+  }
+
+  // 编辑销售记录
+  function editSale(index) {
+    const sale = sales[index];
+    document.getElementById('customerName').value = sale.customerName;
+    document.getElementById('saleDate').value = sale.saleDate;
+    document.getElementById('saleProduct').value = inventory.findIndex(product => product.name === sale.product);
+    document.getElementById('saleQuantity').value = sale.saleQuantity;
+    document.getElementById('saleUnitPrice').value = sale.saleUnitPrice;
+    document.getElementById('customerContact').value = sale.customerContact;
+    document.getElementById('shippingAddress').value = sale.shippingAddress;
+    document.getElementById('courier').value = sale.courier;
+    document.getElementById('trackingNumber').value = sale.trackingNumber;
+
+    editingSaleIndex = index; // 设置正在编辑的销售信息索引
+  }
+
+  // 删除销售记录
+  function deleteSale(index) {
+    const sale = sales[index];
+    const product = inventory.find(item => item.name === sale.product);
+    if (product) {
+      product.quantity += sale.saleQuantity; // 恢复库存
+    }
+    sales.splice(index, 1);
+    renderSales();
+    renderInventory();
+  }
+
+  // 清空库存记录
+  function clearInventory() {
+    inventory = [];
+    renderInventory();
+    updateProductDropdown();
+  }
+
+  // 清空销售记录
+  function clearSales() {
+    sales = [];
+    renderSales();
+  }
+
+  // 重置库存输入框
+  function resetInputFields() {
+    document.getElementById('productName').value = '';
+    document.getElementById('unitPrice').value = '';
+    document.getElementById('purchaseDate').value = '';
+    document.getElementById('location').value = '';
+    document.getElementById('quantity').value = '';
+    document.getElementById('productImage').value = ''; // 清空图片上传框
+  }
+
+  // 重置销售输入框
+  function resetSaleFields() {
+    document.getElementById('customerName').value = '';
+    document.getElementById('saleDate').value = '';
+    document.getElementById('saleProduct').value = '';
+    document.getElementById('saleQuantity').value = '';
+    document.getElementById('saleUnitPrice').value = '';
+    document.getElementById('totalPrice').textContent = "0";
+    document.getElementById('customerContact').value = '';
+    document.getElementById('shippingAddress').value = '';
+    document.getElementById('courier').value = '';
+    document.getElementById('trackingNumber').value = '';
+  }
+</script>
+
+</body>
+</html>
